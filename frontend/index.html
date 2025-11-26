@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <title>FinNova - ผู้ช่วยการเงินส่วนตัว</title>
+    <link rel="icon" type="image/webp" href="FinNova.webp" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+
+  <body>
+    <div class="app">
+
+      <!-- ================= SIDEBAR ================= -->
+      <aside class="sidebar">
+        <div class="sidebar-header">
+          แชทของคุณ
+          <button id="new-chat">+ เพิ่มแชท</button>
+        </div>
+
+        <ul id="chat-list" class="chat-list"></ul>
+      </aside>
+
+      <!-- ================= CHAT AREA ================= -->
+      <section class="chat-container">
+
+        <!-- HEADER -->
+        <header class="app-header">
+          <div class="header-left">
+            <img src="FinNova.webp" alt="FinNova Logo" class="logo" />
+
+            <div class="header-text">
+              <div class="title" id="chat-title">FinNova</div>
+              <div class="subtitle">ผู้ช่วยด้านเงินเดือน ภาษี และการเงินส่วนบุคคล</div>
+            </div>
+          </div>
+        </header>
+
+        <!-- CHAT MESSAGES -->
+        <main id="chat-box" class="chat-box"></main>
+
+        <!-- INPUT FORM -->
+        <form id="chat-form" class="chat-form">
+          <input 
+            id="user-input" 
+            type="text"
+            placeholder="พิมพ์ถาม FinNova เช่น 'เงินเดือน 24500 เสียภาษีไหม'"
+            autocomplete="off"
+          />
+          <button type="submit">ส่ง</button>
+        </form>
+
+      </section>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>

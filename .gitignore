@@ -1,0 +1,13 @@
+# ไม่ให้ node_modules ถูก push
+node_modules/
+
+# สำหรับทั้ง frontend และ backend
+frontend/node_modules/
+backend/node_modules/
+
+# ไฟล์ build อื่นๆ ที่ไม่ควร push
+dist/
+build/
+.env
+*.log
+.DS_Store

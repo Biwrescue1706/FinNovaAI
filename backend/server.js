@@ -122,7 +122,7 @@ async function smartChat(input) {
         const salary = Number(match[1]);
         const { annual, expense, deduction, net, tax } = calculateTax(salary);
 
-        const ans = `คำนวณให้แล้วครับ 📊
+        const ans = `คำนวณภาษีเงินได้บุคคลธรรมดาให้แล้วครับ 📊
 
 💼 รายได้ & รายจ่าย
 - เงินเดือนต่อปี: ${annual.toLocaleString()} บาท

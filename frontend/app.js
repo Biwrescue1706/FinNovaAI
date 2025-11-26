@@ -1,12 +1,20 @@
 // ====================== CONFIG ======================
-const API_BASE = "https://finnovaai-backend.onrender.com";
+const API_BASE =
+  window._env_?.API_BASE || "https://finnovaai-backend.onrender.com";
 
+// ====================== DOM ELEMENTS ======================
 const chatBox = document.getElementById("chat-box");
 const form = document.getElementById("chat-form");
 const input = document.getElementById("user-input");
 
 // ====================== LOCAL STORAGE ======================
-let chats = JSON.parse(localStorage.getItem("finnova_chats") || "[]");
+let chats = [];
+try {
+  chats = JSON.parse(localStorage.getItem("finnova_chats") || "[]");
+} catch {
+  chats = [];
+}
+
 let currentChatId = null;
 
 // บันทึกลง localStorage
@@ -14,12 +22,23 @@ function saveChats() {
   localStorage.setItem("finnova_chats", JSON.stringify(chats));
 }
 
+// เก็บ id แชทล่าสุดที่เปิด
+function setLastChat(id) {
+  if (id == null) {
+    localStorage.removeItem("finnova_last_chat");
+  } else {
+    localStorage.setItem("finnova_last_chat", String(id));
+  }
+}
+
 // ====================== UI Helpers ======================
 function addMessage(text, sender, options = {}) {
   const row = document.createElement("div");
   row.classList.add("message-row", sender);
 
-  if (options.pending) row.classList.add("pending");
+  if (options.pending) {
+    row.classList.add("pending");
+  }
 
   const bubble = document.createElement("div");
   bubble.classList.add("message-bubble");
@@ -30,7 +49,6 @@ function addMessage(text, sender, options = {}) {
   row.appendChild(bubble);
   chatBox.appendChild(row);
   chatBox.scrollTop = chatBox.scrollHeight;
-
   return row;
 }
 
@@ -38,15 +56,11 @@ function addMessage(text, sender, options = {}) {
 function createChat() {
   const id = Date.now();
 
+  // แชทใหม่อยู่บนสุด
   chats.unshift({
     id,
-    name: `แชทใหม่`,
-    messages: [
-      {
-        text: "สวัสดีครับ! มาเลย มีอะไรอยากรู้เรื่องเงินๆ ทองๆ ถามมาได้เลยนะ",
-        sender: "ai",
-      },
-    ],
+    name: "แชทใหม่",
+    messages: [],
   });
 
   saveChats();
@@ -73,45 +87,76 @@ function loadChats() {
 }
 
 function openChat(id) {
-  currentChatId = id;
   const chat = chats.find((c) => c.id === id);
-  document.getElementById("chat-title").textContent = chat.name;
+  if (!chat) return;
+
+  currentChatId = id;
+  setLastChat(id);
+
+  const titleEl = document.getElementById("chat-title");
+  if (titleEl) {
+    titleEl.textContent = chat.name;
+  }
+
   chatBox.innerHTML = "";
   chat.messages.forEach((msg) => addMessage(msg.text, msg.sender));
 }
 
 function renameChat(id) {
   const chat = chats.find((c) => c.id === id);
-  const newName = prompt("ตั้งชื่อแชทใหม่:", chat.name);
+  if (!chat) return;
+
+  const newName = prompt("ตั้งชื่อแชทใหม่ : ", chat.name);
   if (!newName) return;
 
-  chat.name = newName.trim();
+  chat.name = newName.trim() || chat.name;
   saveChats();
   loadChats();
-  document.getElementById("chat-title").textContent = chat.name;
+
+  if (currentChatId === id) {
+    const titleEl = document.getElementById("chat-title");
+    if (titleEl) {
+      titleEl.textContent = chat.name;
+    }
+  }
 }
 
 function deleteChat(id) {
   chats = chats.filter((c) => c.id !== id);
   saveChats();
   loadChats();
-  chatBox.innerHTML = "";
-  currentChatId = null;
+
+  if (currentChatId === id) {
+    currentChatId = null;
+    setLastChat(null);
+    chatBox.innerHTML = "";
+
+    // ถ้ายังมีแชทอื่นอยู่ เปิดอันบนสุดแทน
+    if (chats.length > 0) {
+      openChat(chats[0].id);
+    }
+  }
 }
 
 // ====================== SEND MESSAGE ======================
 async function sendMessage(text) {
-  if (!currentChatId) createChat();
+  // ถ้ายังไม่มีแชทเลย ให้สร้างก่อน
+  if (!currentChatId) {
+    createChat();
+  }
 
   const chat = chats.find((c) => c.id === currentChatId);
+  if (!chat) return;
 
-  // user bubble
+  // เพิ่มข้อความฝั่ง user
   addMessage(text, "user");
   chat.messages.push({ text, sender: "user" });
   saveChats();
 
-  // ai pending
-  const pendingRow = addMessage("กำลังคิดคำตอบให้สักครู่...", "ai", { pending: true });
+  // เพิ่ม bubble รอคำตอบ
+  const pendingRow = addMessage("กำลังคิดคำตอบให้สักครู่...", "ai", {
+    pending: true,
+  });
 
   try {
     const res = await fetch(`${API_BASE}/chat`, {
@@ -120,6 +165,10 @@ async function sendMessage(text) {
       body: JSON.stringify({ message: text }),
     });
 
+    if (!res.ok) {
+      throw new Error("HTTP error " + res.status);
+    }
+
     const data = await res.json();
     chatBox.removeChild(pendingRow);
 
@@ -127,8 +176,9 @@ async function sendMessage(text) {
     chat.messages.push({ text: data.answer, sender: "ai" });
     saveChats();
   } catch (err) {
+    console.error(err);
     chatBox.removeChild(pendingRow);
-    addMessage("❌ ไม่สามารถเชื่อมต่อ Backend ได้", "ai");
+    addMessage("ขออภัย เชื่อมต่อ Backend ไม่ได้ ลองเช็กว่าเซิร์ฟเวอร์รันอยู่หรือไม่", "ai");
   }
 }
 
@@ -141,8 +191,25 @@ form.addEventListener("submit", (e) => {
   sendMessage(text);
 });
 
-// ====================== BIND NEW CHAT BUTTON ======================
-document.getElementById("new-chat").addEventListener("click", createChat);
+// ====================== NEW CHAT BUTTON ======================
+document.getElementById("new-chat").addEventListener("click", () => {
+  createChat();
+});
 
-// โหลดแชทเมื่อเปิดเว็บ
+// ====================== INITIAL LOAD ======================
 loadChats();
+
+// หลังรีเฟรช ถ้ามี last chat ให้เปิดอันนั้นก่อน
+const lastIdRaw = localStorage.getItem("finnova_last_chat");
+if (lastIdRaw) {
+  const lastId = Number(lastIdRaw);
+  const exists = chats.find((c) => c.id === lastId);
+  if (exists) {
+    openChat(lastId);
+  } else if (chats.length > 0) {
+    openChat(chats[0].id);
+  }
+} else if (chats.length > 0) {
+  // ไม่มี last chat แต่มีแชทในระบบ → เปิดอันบนสุด
+  openChat(chats[0].id);
+}

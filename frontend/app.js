@@ -75,13 +75,35 @@ function loadChats() {
   chats.forEach((chat) => {
     const li = document.createElement("li");
     li.className = "chat-item";
-    li.innerHTML = `
-      <span onclick="openChat(${chat.id})">${chat.name}</span>
-      <span class="chat-actions">
-        <button onclick="renameChat(${chat.id})">✏</button>
-        <button onclick="deleteChat(${chat.id})">🗑</button>
-      </span>
+
+    // ชื่อแชท
+    const nameSpan = document.createElement("span");
+    nameSpan.textContent = chat.name;
+
+    // คลิกทั้งแถวเพื่อเปิดแชท
+    li.addEventListener("click", () => openChat(chat.id));
+
+    // ปุ่มแก้ไข + ลบ
+    const actions = document.createElement("span");
+    actions.className = "chat-actions";
+    actions.innerHTML = `
+      <button class="rename-btn">✏</button>
+      <button class="delete-btn">🗑</button>
     `;
+
+    // ป้องกันคลิกปุ่มแล้วเข้าแชท
+    actions.querySelector(".rename-btn").addEventListener("click", (e) => {
+      e.stopPropagation();
+      renameChat(chat.id);
+    });
+
+    actions.querySelector(".delete-btn").addEventListener("click", (e) => {
+      e.stopPropagation();
+      deleteChat(chat.id);
+    });
+
+    li.appendChild(nameSpan);
+    li.appendChild(actions);
     list.appendChild(li);
   });
 }

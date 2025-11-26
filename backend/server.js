@@ -1,8 +1,4 @@
-// ======== FinNova Backend (Node.js) ========
-// AI การเงินส่วนบุคคล พร้อม RAG + ความจำ + ภาษี
-//------------------------------------------------
-
-// โหลด .env
+// โหลด ENV
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
@@ -12,12 +8,12 @@ import { MemoryVectorStore } from "langchain/vectorstores/memory";
 import { financial_docs } from "./financial_docs.js";
 import { pipeline } from "@xenova/transformers";
 
-// ===== Express Setup =====
+// ===== EXPRESS CONFIG =====
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// ===== ENV =====
+// ===== ENV VARIABLES =====
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const PORT = process.env.PORT || 8000;
 
@@ -26,35 +22,33 @@ if (!GEMINI_API_KEY) {
     process.exit(1);
 }
 
-// ===== Gemini Setup =====
+// ===== LLM Engine =====
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 
-// ===== Load Embedding Model =====
+// ===== LOAD EMBEDDING MODEL =====
 console.log("🔁 Loading embeddings model...");
 const embedder = await pipeline("feature-extraction", "Xenova/all-MiniLM-L6-v2");
 
-// ===== Embedding Adapter for LangChain =====
+// Adapter ให้ LangChain ใช้งาน
 class XenovaEmbeddings {
-    constructor(embedder) {
-        this.embedder = embedder;
+    constructor(model) {
+        this.model = model;
     }
-
     async embedDocuments(texts) {
-        const vectors = [];
-        for (const text of texts) {
-            const out = await this.embedder(text);
-            vectors.push(out.data[0]);
+        const out = [];
+        for (const t of texts) {
+            const v = await this.model(t);
+            out.push(v.data[0]);
         }
-        return vectors;
+        return out;
     }
-
     async embedQuery(text) {
-        const out = await this.embedder(text);
-        return out.data[0];
+        const v = await this.model(text);
+        return v.data[0];
     }
 }
 
-// ===== Split Docs =====
+// ===== SPLIT KNOWLEDGE BASE =====
 console.log("📄 Splitting knowledge base...");
 const splitter = new RecursiveCharacterTextSplitter({
     chunkSize: 300,
@@ -62,7 +56,7 @@ const splitter = new RecursiveCharacterTextSplitter({
 });
 const docs = await splitter.splitText(financial_docs);
 
-// ===== Vector DB =====
+// ===== CREATE VECTOR DATABASE =====
 console.log("🧠 Creating Vector Store...");
 const vectorStore = await MemoryVectorStore.fromTexts(
     docs,
@@ -70,21 +64,18 @@ const vectorStore = await MemoryVectorStore.fromTexts(
     new XenovaEmbeddings(embedder)
 );
 
-// ===== Memory =====
+// ===== MEMORY =====
 let memorySummary = "";
 let chatHistory = [];
 
-// ===== Tax Function =====
+// ===== TAX CALCULATOR =====
 function calculateTax(salary) {
     const annual = salary * 12;
-    const expense = Math.min(annual * 0.5, 100000); // ค่าใช้จ่ายเหมา
-    const deduction = 60000; // ค่าลดหย่อนส่วนตัว
+    const expense = Math.min(annual * 0.5, 100000);
+    const deduction = 60000;
     const net = annual - expense - deduction;
 
     if (net <= 0) return { annual, expense, deduction, net, tax: 0 };
-
-    let tax = 0;
-    let remain = net;
 
     const brackets = [
         [150000, 0],
@@ -97,11 +88,12 @@ function calculateTax(salary) {
         [Infinity, 0.35],
     ];
 
+    let tax = 0, remain = net;
     for (const [limit, rate] of brackets) {
-        if (remain <= 0) break;
         const amt = Math.min(remain, limit);
         tax += amt * rate;
         remain -= amt;
+        if (remain <= 0) break;
     }
 
     return { annual, expense, deduction, net, tax };
@@ -110,43 +102,42 @@ function calculateTax(salary) {
 // ===== Persona =====
 const PERSONA = `
 ชื่อ: FinNova
-คาแรคเตอร์: นักวิเคราะห์การเงินที่พูดให้เข้าใจง่าย ไม่เวิ่น ไม่ใช้ศัพท์ยาก
-ถนัดเรื่อง: เงินเดือน ภาษี การเงินส่วนบุคคล งบการเงิน
-โทนการพูด: เหมือนเพื่อนที่เก่งเรื่องการเงิน อธิบายตรงๆ ฟังแล้วเข้าใจเลย
+คาแรคเตอร์: นักวิเคราะห์การเงินที่พูดเข้าใจง่าย ไม่สอนแบบตำรา
+ถนัด: ภาษี เงินเดือน การเงินส่วนบุคคล งบการเงิน
+โทน: เพื่อนที่เก่งเรื่องการเงิน อธิบายสั้น เคลียร์ ตรงประเด็น
 `;
 
-// ===== Core Chat Engine =====
+// ===== CORE CHAT ENGINE =====
 async function smartChat(input) {
+    // ตรวจจับข้อความ "เงินเดือนxxxx"
     const match = input.match(/เงินเดือน\s*(\d+)/);
     if (match) {
         const salary = Number(match[1]);
         const { annual, expense, deduction, net, tax } = calculateTax(salary);
 
-        const ans = `คำนวณภาษีเงินได้บุคคลธรรมดาให้แล้วครับ 📊
+        const ans = `
+คำนวณภาษีเงินได้บุคคลธรรมดาให้แล้วครับ 📊
+(ผลการคำนวณนี้เป็นการประเมินเบื้องต้น หากมีค่าลดหย่อนอื่นเพิ่มเติม ผลลัพธ์อาจเปลี่ยนแปลงได้)
 
-💼 รายได้ & รายจ่าย
-- เงินเดือนต่อปี: ${annual.toLocaleString()} บาท
-- ค่าใช้จ่ายเหมา (50% ของรายได้ สูงสุด 100,000): ${expense.toLocaleString()} บาท
-- ค่าลดหย่อนส่วนบุคคล: ${deduction.toLocaleString()} บาท
+💼 รายได้ต่อปี : ${annual.toLocaleString()} บาท
+💸 ค่าใช้จ่ายเหมา : ${expense.toLocaleString()} บาท
+🧾 ค่าลดหย่อนส่วนตัว : ${deduction.toLocaleString()} บาท
+🟦 เงินได้สุทธิ : ${net.toLocaleString()} บาท
 
-🧮 เงินได้สุทธิ
-= ${annual.toLocaleString()} - ${expense.toLocaleString()} - ${deduction.toLocaleString()}
-= ${net.toLocaleString()} บาท
-
-🎯 ผลลัพธ์ภาษี
 ${tax > 0
-                ? `ต้องเสียภาษีจำนวน ${tax.toLocaleString()} บาท`
-                : "ไม่ต้องเสียภาษี เพราะเงินได้สุทธิไม่ถึงเกณฑ์"}
+                ? `💰 ต้องเสียภาษี: ${tax.toLocaleString()} บาท`
+                : "🎉 ไม่ต้องเสียภาษีครับ"}
 
-📝 อธิบายเพิ่มเติม:
-เงินได้สุทธิ = รายได้ต่อปี - ค่าใช้จ่าย - ค่าลดหย่อน`;
+เงินได้สุทธิ = รายได้ - ค่าใช้จ่าย - ค่าลดหย่อน
+`.trim();
 
         chatHistory.push({ user: input, ai: ans });
         return ans;
     }
 
-    const foundDocs = await vectorStore.similaritySearch(input, 3);
-    const context = foundDocs.map((d) => d.pageContent).join("\n");
+    // ===== RAG SEARCH =====
+    const found = await vectorStore.similaritySearch(input, 3);
+    const context = found.map((d) => d.pageContent).join("\n");
 
     const llm = genAI.getGenerativeModel({
         model: "gemini-2.5-flash",
@@ -159,38 +150,37 @@ ${PERSONA}
 ข้อมูลอ้างอิง:
 ${context}
 
-สรุปก่อนหน้า:
+สรุปบทสนทนาก่อนหน้า:
 ${memorySummary}
 
 คำถาม: ${input}
-ตอบแบบเข้าใจง่าย กระชับ ไม่สอนเป็นตำรา
-`;
+ตอบแบบเข้าใจง่าย กระชับ ไม่ใช้ศัพท์เทคนิคเกินไป
+`.trim();
 
     const result = await llm.generateContent(prompt);
-    const ans = result.response.text();
+    const answer = result.response.text();
 
-    chatHistory.push({ user: input, ai: ans });
+    chatHistory.push({ user: input, ai: answer });
 
+    // อัปเดต memory summary
     const mem = await llm.generateContent(
-        `สรุปการคุยนี้ 3 บรรทัด:\n${chatHistory
+        `สรุปความคุยนี้ 3 บรรทัด:\n${chatHistory
             .map((h) => `U:${h.user}\nA:${h.ai}`)
             .join("\n")}`
     );
     memorySummary = mem.response.text();
 
-    return ans;
+    return answer;
 }
 
-// ===== Routes =====
+// ===== ROUTES =====
 app.get("/", (_, res) => res.send("FinNova Backend is running 🚀"));
-app.get("/test", (_, res) => res.send("OK"));
-
 app.post("/chat", async (req, res) => {
     const answer = await smartChat(req.body.message);
     res.json({ answer });
 });
 
-// ===== Run Server =====
+// ===== START SERVER =====
 app.listen(PORT, () => {
     console.log(`🚀 FinNova backend running at http://localhost:${PORT}`);
 });

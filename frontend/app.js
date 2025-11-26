@@ -19,9 +19,7 @@ function addMessage(text, sender, options = {}) {
   const row = document.createElement("div");
   row.classList.add("message-row", sender);
 
-  if (options.pending) {
-    row.classList.add("pending");
-  }
+  if (options.pending) row.classList.add("pending");
 
   const bubble = document.createElement("div");
   bubble.classList.add("message-bubble");
@@ -32,13 +30,25 @@ function addMessage(text, sender, options = {}) {
   row.appendChild(bubble);
   chatBox.appendChild(row);
   chatBox.scrollTop = chatBox.scrollHeight;
+
   return row;
 }
 
 // ====================== CHAT CONTROL ======================
 function createChat() {
   const id = Date.now();
-  chats.push({ id, name: "แชทใหม่", messages: [] });
+
+  chats.unshift({
+    id,
+    name: `แชทใหม่`,
+    messages: [
+      {
+        text: "สวัสดีครับ! มาเลย มีอะไรอยากรู้เรื่องเงินๆ ทองๆ ถามมาได้เลยนะ",
+        sender: "ai",
+      },
+    ],
+  });
+
   saveChats();
   loadChats();
   openChat(id);
@@ -48,7 +58,7 @@ function loadChats() {
   const list = document.getElementById("chat-list");
   list.innerHTML = "";
 
-  chats.forEach(chat => {
+  chats.forEach((chat) => {
     const li = document.createElement("li");
     li.className = "chat-item";
     li.innerHTML = `
@@ -64,24 +74,25 @@ function loadChats() {
 
 function openChat(id) {
   currentChatId = id;
-  const chat = chats.find(c => c.id === id);
+  const chat = chats.find((c) => c.id === id);
   document.getElementById("chat-title").textContent = chat.name;
   chatBox.innerHTML = "";
-  chat.messages.forEach(msg => addMessage(msg.text, msg.sender));
+  chat.messages.forEach((msg) => addMessage(msg.text, msg.sender));
 }
 
 function renameChat(id) {
-  const chat = chats.find(c => c.id === id);
+  const chat = chats.find((c) => c.id === id);
   const newName = prompt("ตั้งชื่อแชทใหม่:", chat.name);
-  if (newName) {
-    chat.name = newName;
-    saveChats();
-    loadChats();
-  }
+  if (!newName) return;
+
+  chat.name = newName.trim();
+  saveChats();
+  loadChats();
+  document.getElementById("chat-title").textContent = chat.name;
 }
 
 function deleteChat(id) {
-  chats = chats.filter(c => c.id !== id);
+  chats = chats.filter((c) => c.id !== id);
   saveChats();
   loadChats();
   chatBox.innerHTML = "";
@@ -92,7 +103,7 @@ function deleteChat(id) {
 async function sendMessage(text) {
   if (!currentChatId) createChat();
 
-  const chat = chats.find(c => c.id === currentChatId);
+  const chat = chats.find((c) => c.id === currentChatId);
 
   // user bubble
   addMessage(text, "user");
@@ -130,5 +141,8 @@ form.addEventListener("submit", (e) => {
   sendMessage(text);
 });
 
-// เริ่มโหลดรายการแชท
+// ====================== BIND NEW CHAT BUTTON ======================
+document.getElementById("new-chat").addEventListener("click", createChat);
+
+// โหลดแชทเมื่อเปิดเว็บ
 loadChats();

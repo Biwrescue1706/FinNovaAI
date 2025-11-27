@@ -140,7 +140,7 @@ ${tax > 0
     const context = found.map((d) => d.pageContent).join("\n");
 
     const llm = genAI.getGenerativeModel({
-        model: "gemini-3-pro",
+        model: "gemini-2.5-flash",
         generationConfig: { temperature: 0.25 },
     });
 
@@ -175,6 +175,7 @@ ${memorySummary}
 
 // ===== ROUTES =====
 app.get("/", (_, res) => res.send("FinNova Backend is running 🚀"));
+
 app.post("/chat", async (req, res) => {
     const answer = await smartChat(req.body.message);
     res.json({ answer });

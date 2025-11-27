@@ -140,7 +140,7 @@ ${tax > 0
     const context = found.map((d) => d.pageContent).join("\n");
 
     const llm = genAI.getGenerativeModel({
-        model: "gemini-2.5-flash-live",
+        model: "gemini-3-pro",
         generationConfig: { temperature: 0.25 },
     });
 
